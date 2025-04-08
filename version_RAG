@@ -1,0 +1,215 @@
+# Importar librerías
+import os
+os.environ["TRANSFORMERS_NO_TF"] = "1"
+import torch
+import transformers
+from transformers import LlamaForCausalLM, LlamaTokenizer
+import yaml
+from scipy.io import arff
+import pandas as pd
+from google.colab import files
+import textwrap
+
+# RAG
+!pip install -q langchain chromadb sentence-transformers
+from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.vectorstores import Chroma
+from langchain.document_loaders.csv_loader import CSVLoader
+from langchain.text_splitter import CharacterTextSplitter
+
+# Ruta al modelo LLaMA y CSV
+model_dir = "/content/drive/MyDrive/llama/llama-2-7b-chat-hf"
+csv_path = "/content/drive/MyDrive/contexto_RAG.csv"
+
+# Cargar modelo
+tokenizer = LlamaTokenizer.from_pretrained(model_dir)
+tokenizer.pad_token_id = tokenizer.eos_token_id
+model = LlamaForCausalLM.from_pretrained(model_dir, torch_dtype=torch.float16, device_map="auto")
+
+# RAG setup
+loader = CSVLoader(file_path=csv_path)
+docs = loader.load()
+text_splitter = CharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+documents = text_splitter.split_documents(docs)
+embedding = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+vectordb = Chroma.from_documents(documents=documents, embedding=embedding, persist_directory="./db")
+
+# Funciones
+
+def wrap_text(text, width=200):
+    return "\n".join(textwrap.wrap(text, width))
+
+def generate_response(prompt):
+    inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=256).to("cuda")
+    outputs = model.generate(
+        **inputs,
+        max_length=256,
+        do_sample=True,
+        temperature=0.7,
+        top_p=0.9,
+        top_k=50,
+        num_return_sequences=1,
+        eos_token_id=tokenizer.eos_token_id
+    )
+    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    return response
+
+def generar_resumen_llama_breve(config, table_config):
+    entrada = ", ".join([f['name'] for f in config['input_features']])
+    salida = ", ".join([f['name'] for f in config['output_features']])
+    separador = table_config['separator']
+    faltantes = table_config['missing_data']
+
+    prompt = (
+        f"¿Cuál es el propósito de este modelo?\n"
+        f"- Entradas: {entrada}\n"
+        f"- Salida: {salida}\n"
+        f"- Separador: {separador}\n"
+        f"- Tratamiento de valores faltantes: {faltantes}\n\n"
+        f"Respuesta (solo un párrafo en español, sin repetir la pregunta):"
+    )
+
+    inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
+    outputs = model.generate(
+        **inputs,
+        max_new_tokens=150,
+        do_sample=True,
+        temperature=0.7,
+        top_p=0.9,
+        top_k=50,
+        eos_token_id=tokenizer.eos_token_id
+    )
+    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    return response.replace(prompt, "").strip()
+
+def ayuda_mode(question):
+    retrived_docs = vectordb.similarity_search(question, k=1)
+    contexto = retrived_docs[0].page_content if retrived_docs else ""
+    prompt = f"""Usa el siguiente contexto para explicar al usuario de forma clara y sencilla. Si el contexto no es útil, responde de forma general:
+Contexto: {contexto}
+
+Pregunta: {question}
+Respuesta:"""
+    raw = generate_response(prompt)
+    print("🔍 Ayuda LLaMA:\n" + wrap_text(raw.replace(prompt, "").strip()))
+    print(wrap_text(contexto))
+
+def ask_question(prompt, options=None):
+    while True:
+        print(f"\nChatbot LLaMA: {prompt}")
+        if options:
+            for i, option in enumerate(options, 1):
+                print(f"  {i}. {option}")
+            user_input = input("Selecciona una opción (número): ")
+            if user_input.strip().lower().startswith("ayuda:"):
+                ayuda_mode(user_input.replace("ayuda:", "").strip())
+                continue
+            if user_input.isdigit():
+                idx = int(user_input)
+                if 1 <= idx <= len(options):
+                    return options[idx - 1].split(':')[0].strip()
+            print("\n❌ Entrada inválida. Por favor, introduce el número correspondiente a una de las opciones mostradas.")
+        else:
+            user_input = input("Tú: ")
+            if user_input.strip().lower().startswith("ayuda:"):
+                ayuda_mode(user_input.replace("ayuda:", "").strip())
+                continue
+            return user_input
+
+def create_yaml(config, filename="config.yml"):
+    with open(filename, "w") as file:
+        yaml.dump(config, file)
+    print(f"Archivo {filename} creado correctamente.")
+
+# Bienvenida
+print("Chatbot LLaMA: Bienvenido a la interfaz de AutoML 🤖")
+print("Puedes responder normalmente a las preguntas que iré haciendo.")
+print("Si tienes dudas escribe: ayuda: tu pregunta")
+
+# Subida
+uploaded = files.upload()
+for filename in uploaded.keys():
+    file_path = filename
+
+# Cargar .arff
+data, meta = arff.loadarff(file_path)
+df = pd.DataFrame(data)
+print(f"Archivo cargado: {file_path}\nColumnas: {list(df.columns)}")
+
+# Configuración
+config = {"input_features": [], "output_features": []}
+table_config = {}
+
+separator_options = [
+    "comma: Columnas separadas por comas.",
+    "semicolon: Columnas separadas por punto y coma.",
+    "backslash: Columnas separadas por barra invertida."
+]
+missing_data_options = [
+    "fill_with_const: Valor específico.",
+    "fill_with_mode: Valor más frecuente.",
+    "fill_with_mean: Media.",
+    "fill_with_false: Valor falso.",
+    "bfill: Valor siguiente.",
+    "ffill: Valor anterior.",
+    "drop_row: Eliminar fila."
+]
+feature_role_options = [
+    "input: Entrada.",
+    "output: Salida.",
+    "ninguna: Ignorar."
+]
+input_type_options = [
+    "binary: Binario.",
+    "number: Numérico.",
+    "category: Categórico.",
+    "text: Texto.",
+    "vector: Vector.",
+    "image: Imagen.",
+    "audio: Audio.",
+    "timeseries: Serie temporal.",
+    "date: Fecha."
+]
+target_type_options = [
+    "binary: Binario.",
+    "number: Numérico.",
+    "category: Categórico.",
+    "bag: Bolsa.",
+    "set: Conjunto.",
+    "sequence: Secuencia.",
+    "text: Texto.",
+    "vector: Vector.",
+    "audio: Audio.",
+    "date: Fecha.",
+    "h3: H3.",
+    "image: Imagen.",
+    "timeseries: Serie temporal."
+]
+
+# Preguntas
+print("\nChatbot LLaMA: Vamos a configurar tus datos.")
+table_config["separator"] = ask_question("Separador de columnas:", separator_options)
+table_config["missing_data"] = ask_question("¿Cómo tratar los datos faltantes?", missing_data_options)
+
+for column in df.columns:
+    role = ask_question(f"Uso para la columna '{column}':", feature_role_options)
+    if role == "input":
+        tipo = ask_question(f"Tipo de dato de '{column}':", input_type_options)
+        config["input_features"].append({"name": str(column), "type": tipo})
+    elif role == "output":
+        tipo = ask_question(f"Tipo de objetivo de '{column}':", target_type_options)
+        config["output_features"].append({"name": str(column), "type": tipo})
+
+# Guardar YAML
+config["preprocessing"] = {
+    "separator": table_config["separator"],
+    "missing_value_strategy": table_config["missing_data"]
+}
+
+print("\n📜 Resumen de configuración:")
+print(wrap_text(generar_resumen_llama_breve(config, table_config)))
+
+create_yaml(config)
+files.download("config.yml")
+
+print("\n📅 LLaMA: ¡Proceso terminado y archivo YAML listo para usar con Ludwig!")

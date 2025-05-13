@@ -1,8 +1,0 @@
---> PARÁMETROS DE CONFIGURACIÓN DEL MODELO
-- Precisión Numérica (torch_dtype=torch.float16): El modelo usa punto flotante de 16 bits(FP16) en lugar de la precisión completa de 32 bits(FP32).
-Utilizo FP16 para reducir el uso de memoria y permite cargar modelos grandes en GPUs con menos VRAM.
-
-- Uso de GPU (device_map="cuda"): Al ejecutar el modelo en google colab en un entrono de ejecución GPU T4, usando el comando device_map="cuda", se fuerza a que el modelo se cargue en la GPU en lugar de la CPU o
-en el RAM del sistema. Si no forzase esto tardaría mucho en ejecutarse, ya que los modelos llamas son modelos pesados.
-
-- 

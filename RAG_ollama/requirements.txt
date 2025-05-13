@@ -1,0 +1,10 @@
+pandas
+openpyxl
+scipy
+ludwig
+textwrap3
+requests
+pyyaml
+langchain
+sentence-transformers
+chromadb

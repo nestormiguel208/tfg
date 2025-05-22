@@ -1,8 +1,8 @@
 import pandas as pd
-from scipy.io import arff
 import yaml
+from scipy.io import arff
 
-def load_dataset(file_path):
+def load_file(file_path):
     if file_path.endswith(".arff"):
         data, _ = arff.loadarff(file_path)
         return pd.DataFrame(data)
@@ -13,6 +13,6 @@ def load_dataset(file_path):
     else:
         raise ValueError("Formato de archivo no soportado.")
 
-def save_config(config, path="config.yml"):
-    with open(path, "w") as f:
+def save_config(config, file_name="auto_config.yml"):
+    with open(file_name, "w") as f:
         yaml.dump(config, f, allow_unicode=True)

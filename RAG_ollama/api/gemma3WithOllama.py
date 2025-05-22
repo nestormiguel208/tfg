@@ -1,5 +1,6 @@
 import requests
 import json
+from utils.text_utils import wrap_text
 
 def generate_response(prompt):
     respuesta = requests.post(
@@ -13,6 +14,13 @@ def generate_response(prompt):
             parte = json.loads(linea)
             respuesta_completa += parte.get("response", "")
     return respuesta_completa.strip()
+
+def ayuda_mode(question):
+    prompt = f"""Responde a la siguiente pregunta de forma clara y sencilla, en español. Si no sabes la respuesta, dilo honestamente.
+
+Pregunta: {question}
+Respuesta:"""
+    print("Ayuda LLaMA:\n" + wrap_text(generate_response(prompt)))
 
 def generar_resumen(config, table_config):
     separator = table_config.get('separator', 'no especificado')

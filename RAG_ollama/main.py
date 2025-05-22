@@ -1,20 +1,20 @@
 import argparse
-import yaml
 from ludwig.automl import create_auto_config
-from utils import io_utils, interaction
+from utils.io_utils import load_file, save_config
+from utils.interaction import ask_question
 from utils.text_utils import wrap_text
 from api.gemma3WithOllama import generar_resumen
 
 def main():
-    parser = argparse.ArgumentParser(description="Chatbot OLLAMA para configuración AutoML")
+    parser = argparse.ArgumentParser(description="Chatbot LLaMA para configuración AutoML")
     parser.add_argument("archivo", help="Ruta al archivo de datos (.csv, .xlsx, .arff)")
     args = parser.parse_args()
     file_path = args.archivo
 
-    df = io_utils.load_file(file_path)
+    df = load_file(file_path)
     print(f"\nColumnas detectadas: {list(df.columns)}")
 
-    target = interaction.ask_question("¿Cuál es la columna objetivo (de salida)?", None)
+    target = ask_question("¿Cuál es la columna objetivo (de salida)?", None)
     if target not in df.columns:
         print(f"Columna '{target}' no encontrada.")
         return
@@ -22,12 +22,12 @@ def main():
     print("\nGenerando configuración automática con Ludwig AutoML...")
     config = create_auto_config(dataset=df, target=target, time_limit_s=600)
 
-    separator = interaction.ask_question("Separador de columnas:", [
+    separator = ask_question("Separador de columnas:", [
         "comma: Columnas separadas por comas.",
         "semicolon: Columnas separadas por punto y coma.",
         "backslash: Columnas separadas por barra invertida."
     ])
-    missing_data = interaction.ask_question("¿Cómo tratar los datos faltantes?", [
+    missing_data = ask_question("¿Cómo tratar los datos faltantes?", [
         "fill_with_const: Valor específico.",
         "fill_with_mode: Valor más frecuente.",
         "fill_with_mean: Media.",
@@ -39,13 +39,10 @@ def main():
     config["preprocessing"] = {"separator": separator, "missing_value_strategy": missing_data}
 
     print("\nConfiguración generada automáticamente:")
-    print(yaml.dump(config, allow_unicode=True))
-
-    with open("auto_config.yml", "w") as f:
-        yaml.dump(config, f, allow_unicode=True)
+    save_config(config)
 
     while True:
-        edit = interaction.ask_question("¿Quieres modificar alguna columna o configuración? (sí/no)", ["sí", "no"])
+        edit = ask_question("¿Quieres modificar alguna columna o configuración? (sí/no)", ["sí", "no"])
         if edit == "no":
             break
 
@@ -70,16 +67,16 @@ def main():
             continue
         col_name = df.columns[int(sel) - 1]
 
-        role = interaction.ask_question(f"Uso para la columna '{col_name}':", feature_role_options)
+        role = ask_question(f"Uso para la columna '{col_name}':", feature_role_options)
 
         inputs.pop(col_name, None)
         outputs.pop(col_name, None)
 
         if role == "input":
-            tipo = interaction.ask_question(f"Tipo de dato de '{col_name}':", input_type_options)
+            tipo = ask_question(f"Tipo de dato de '{col_name}':", input_type_options)
             inputs[col_name] = {"name": col_name, "type": tipo}
         elif role == "output":
-            tipo = interaction.ask_question(f"Tipo de objetivo de '{col_name}':", output_type_options)
+            tipo = ask_question(f"Tipo de objetivo de '{col_name}':", output_type_options)
             outputs[col_name] = {"name": col_name, "type": tipo}
         else:
             print(f"Columna '{col_name}' será ignorada.")
@@ -87,10 +84,9 @@ def main():
         config["input_features"] = list(inputs.values())
         config["output_features"] = list(outputs.values())
 
-    with open("auto_config.yml", "w") as f:
-        yaml.dump(config, f, allow_unicode=True)
+        save_config(config)
 
-    print("\nResumen generado por OLLAMA:")
+    print("\nResumen generado por LLaMA:")
     print(wrap_text(generar_resumen(config, config.get("preprocessing", {}))))
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@ from utils.text_utils import wrap_text
 from api.gemma3WithOllama import generar_resumen
 
 def main():
-    parser = argparse.ArgumentParser(description="Chatbot LLaMA para configuración AutoML")
+    parser = argparse.ArgumentParser(description="Chatbot OLLAMA para configuración AutoML")
     parser.add_argument("archivo", help="Ruta al archivo de datos (.csv, .xlsx, .arff)")
     args = parser.parse_args()
     file_path = args.archivo
@@ -90,7 +90,7 @@ def main():
     with open("auto_config.yml", "w") as f:
         yaml.dump(config, f, allow_unicode=True)
 
-    print("\nResumen generado por LLaMA:")
+    print("\nResumen generado por OLLAMA:")
     print(wrap_text(generar_resumen(config, config.get("preprocessing", {}))))
 
 if __name__ == "__main__":

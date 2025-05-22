@@ -15,14 +15,17 @@ def generate_response(prompt):
     return respuesta_completa.strip()
 
 def generar_resumen(config, table_config):
+    separator = table_config.get('separator', 'no especificado')
+    missing_data = table_config.get('missing_value_strategy', 'no especificado')
+
     entrada = ", ".join([f['name'] for f in config['input_features']])
     salida = ", ".join([f['name'] for f in config['output_features']])
     prompt = (
         f"¿Cuál es el propósito de este modelo?\n"
         f"- Entradas: {entrada}\n"
         f"- Salida: {salida}\n"
-        f"- Separador: {table_config['separator']}\n"
-        f"- Tratamiento de valores faltantes: {table_config['missing_data']}\n\n"
+        f"- Separador: {separator}\n"
+        f"- Tratamiento de valores faltantes: {missing_data}\n\n"
         f"Respuesta (solo un párrafo en español, sin repetir la pregunta):"
     )
     return generate_response(prompt).strip()

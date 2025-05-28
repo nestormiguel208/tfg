@@ -28,13 +28,13 @@ print("\nModelo gemma3 conectado con Ollama.")
 def wrap_text(text, width=200):
     return "\n".join(textwrap.wrap(text, width))
 
-# --- Ayuda por RAG (directamente usando el API de Ollama) ---
+# --- Ayuda (directamente usando el API de Ollama) ---
 def ayuda_mode(question):
-    prompt = f"""Responde a la siguiente pregunta de forma clara y sencilla, en español. Si no sabes la respuesta, dilo honestamente.
+    prompt = f"""Responde a la siguiente pregunta de forma clara y sencilla, en español.
 
 Pregunta: {question}
 Respuesta:"""
-    print("Ayuda LLaMA:\n" + wrap_text(generate_response(prompt)))
+    print("Ayuda OLLAMA:\n" + wrap_text(generate_response(prompt)))
 
 def ask_question(prompt, options=None):
     while True:
@@ -60,7 +60,7 @@ def ask_question(prompt, options=None):
                 continue
             return user_input
 
-# --- Generación de resumen por LLaMA ---
+# --- Generación de resumen por OLLAMA ---
 def generar_resumen(config, table_config):
     # Verifica si 'preprocessing' y las claves dentro de table_config existen
     separator = table_config.get('separator', 'no especificado')
@@ -80,7 +80,7 @@ def generar_resumen(config, table_config):
 
 # --- Función principal ---
 def main():
-    parser = argparse.ArgumentParser(description="Chatbot LLaMA para configuración AutoML")
+    parser = argparse.ArgumentParser(description="Chatbot OLLAMA para configuración AutoML")
     parser.add_argument("archivo", help="Ruta al archivo de datos (.csv, .xlsx, .arff)")
     args = parser.parse_args()
     file_path = args.archivo
@@ -197,7 +197,7 @@ def main():
         yaml.dump(config, f, allow_unicode=True)
     print("\nArchivo 'auto_config.yml' guardado correctamente con las modificaciones finales.")
 
-    print("\nResumen generado por LLaMA:")
+    print("\nResumen generado por OLLAMA:")
     print(wrap_text(generar_resumen(config, config.get("preprocessing", {}))))
 
 if __name__ == "__main__":
